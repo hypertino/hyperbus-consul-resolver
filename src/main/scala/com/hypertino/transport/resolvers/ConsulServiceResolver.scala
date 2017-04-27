@@ -22,7 +22,6 @@ class ConsulServiceResolver(consul: Consul)(implicit val scheduler: Scheduler) e
     val svHealth = ServiceHealthCache.newCache(healthClient, serviceName)
     val listener = new ConsulCache.Listener[ServiceHealthKey, ServiceHealth] {
       override def notify(newValues: util.Map[ServiceHealthKey, ServiceHealth]): Unit = {
-        println(newValues)
         //val seq = Seq.canBuildFrom[ServiceEndpoint]
         import scala.collection.JavaConverters._
 
@@ -38,7 +37,6 @@ class ConsulServiceResolver(consul: Consul)(implicit val scheduler: Scheduler) e
             PlainEndpoint(i._1.getHost, Some(i._1.getPort))
           }
           .toSeq
-
         subject.onNext(seq)
       }
     }
