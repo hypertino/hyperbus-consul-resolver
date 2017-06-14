@@ -1,74 +1,84 @@
 package com.hypertino.transport.resolvers
 
+import com.hypertino.hyperbus.model.HRL
 import com.hypertino.hyperbus.transport.api.NoTransportRouteException
 import com.hypertino.hyperbus.transport.resolvers.PlainEndpoint
 import com.orbitz.consul.Consul
-import monix.eval.Task
 import monix.execution.Ack.Continue
 import monix.execution.atomic.AtomicInt
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Millis, Seconds, Span}
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 
-import scala.concurrent.duration._
-
-class ConsulServiceResolverSpec extends FlatSpec with ScalaFutures with Matchers with Eventually {
-  val consul = Consul.builder().build()
+class ConsulServiceResolverSpec extends FlatSpec with ScalaFutures with Matchers with Eventually with BeforeAndAfterAll {
   import monix.execution.Scheduler.Implicits.global
+  val consul = Consul.builder().build()
 
   implicit val defaultPatience =
     PatienceConfig(timeout = Span(4, Seconds), interval = Span(300, Millis))
 
   "Service" should "resolve" in {
     val agentClient = consul.agentClient
-    val serviceName = "test-service"
+    val serviceName = "test-service-1"
     val serviceId = "1"
 
     agentClient.register(15533, 3L, serviceName, serviceId)
     agentClient.pass(serviceId)
 
     val r = new ConsulServiceResolver(consul)
-    r.lookupService("test-service").runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(15533)))
+    r.lookupService(HRL(s"hb://$serviceName")).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(15533)))
 
-    agentClient.deregister("1")
+    agentClient.deregister(serviceId)
   }
 
-  "Not existing service" should "fail fast" ignore {
-    val agentClient = consul.agentClient
-    val serviceName = "unknown-service"
-    val serviceId = "2"
-
+  "Not existing service" should "fail fast" in {
     val r = new ConsulServiceResolver(consul)
-    r.lookupService("test-service").runAsync.failed.futureValue shouldBe a[NoTransportRouteException]
+    r.lookupService(HRL("hb://test-service")).runAsync.failed.futureValue shouldBe a[NoTransportRouteException]
   }
 
   "Service" should "update on change" in {
     val agentClient = consul.agentClient
-    val serviceName = "test-service"
-    val serviceId = "1"
+    val serviceName = "test-service-3"
+    val serviceId = "3"
+    agentClient.deregister(serviceId)
 
     agentClient.register(15533, 3L, serviceName, serviceId)
     agentClient.pass(serviceId)
 
-    val counter = AtomicInt(0)
+    @volatile var becomeAlive = false
+    @volatile var becomeDead = false
+    val lock = new Object
     val r = new ConsulServiceResolver(consul)
 
-    r.serviceObservable("test-service").subscribe(seq ⇒ {
-      val v = counter.incrementAndGet()
-      if (v == 1) {
-        agentClient.fail(serviceId)
-        seq should equal(Seq(PlainEndpoint("127.0.0.1", Some(15533))))
-      }
-      else {
-        seq shouldBe empty
-        agentClient.deregister("1")
+    val c = r.serviceObservable(HRL(s"hb://$serviceName")).subscribe(seq ⇒ {
+      lock.synchronized {
+        if (seq.nonEmpty) {
+          agentClient.fail(serviceId)
+          seq should equal(Seq(PlainEndpoint("127.0.0.1", Some(15533))))
+          becomeAlive = true
+        }
+        else if (becomeAlive) {
+          seq shouldBe empty
+          agentClient.deregister("3")
+          becomeDead = true
+        }
       }
       Continue
     })
 
     eventually {
-      counter.get should equal(2)
+      lock.synchronized {
+        if (!becomeAlive) {
+          agentClient.pass(serviceId)
+        }
+      }
+      becomeAlive && becomeDead
     }
-    agentClient.deregister("1")
+    c.cancel()
+    agentClient.deregister(serviceId)
+  }
+
+  override def afterAll(): Unit = {
+    consul.destroy()
   }
 }

@@ -1,7 +1,9 @@
 package com.hypertino.transport.resolvers
 
+import java.net.URI
 import java.util
 
+import com.hypertino.hyperbus.model.HRL
 import com.hypertino.hyperbus.transport.api.{ServiceEndpoint, ServiceResolver}
 import com.hypertino.hyperbus.transport.resolvers.PlainEndpoint
 import com.orbitz.consul.Consul
@@ -11,18 +13,20 @@ import monix.execution.Scheduler
 import monix.reactive.Observable
 import monix.reactive.subjects.ConcurrentSubject
 
-class ConsulServiceResolver(consul: Consul)(implicit val scheduler: Scheduler) extends ServiceResolver {
+class ConsulServiceResolver(consul: Consul)
+                           (implicit val scheduler: Scheduler) extends ServiceResolver {
 
   def this()(implicit scheduler: Scheduler) = this(Consul.builder().build())
 
-  override def serviceObservable(serviceName: String): Observable[Seq[ServiceEndpoint]] = {
+  override def serviceObservable(hrl: HRL): Observable[Seq[ServiceEndpoint]] = {
+    val serviceName = new URI(hrl.resourceLocator).getHost
+
     val subject = ConcurrentSubject.publishToOne[Seq[ServiceEndpoint]]
     val healthClient = consul.healthClient
 
     val svHealth = ServiceHealthCache.newCache(healthClient, serviceName)
     val listener = new ConsulCache.Listener[ServiceHealthKey, ServiceHealth] {
       override def notify(newValues: util.Map[ServiceHealthKey, ServiceHealth]): Unit = {
-        //val seq = Seq.canBuildFrom[ServiceEndpoint]
         import scala.collection.JavaConverters._
 
         val seq = newValues
