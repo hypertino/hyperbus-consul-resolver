@@ -19,7 +19,7 @@ class ConsulServiceResolver(consul: Consul)
   def this()(implicit scheduler: Scheduler) = this(Consul.builder().build())
 
   override def serviceObservable(hrl: HRL): Observable[Seq[ServiceEndpoint]] = {
-    val serviceName = new URI(hrl.resourceLocator).getHost
+    val serviceName = new URI(hrl.location).getHost
 
     val subject = ConcurrentSubject.publishToOne[Seq[ServiceEndpoint]]
     val healthClient = consul.healthClient
