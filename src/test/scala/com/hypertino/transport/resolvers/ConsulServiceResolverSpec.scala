@@ -1,6 +1,6 @@
 package com.hypertino.transport.resolvers
 
-import com.hypertino.hyperbus.model.HRL
+import com.hypertino.hyperbus.model.{DynamicRequest, EmptyBody, HRL, Method}
 import com.hypertino.hyperbus.transport.api.NoTransportRouteException
 import com.hypertino.hyperbus.transport.resolvers.PlainEndpoint
 import com.orbitz.consul.Consul
@@ -26,14 +26,14 @@ class ConsulServiceResolverSpec extends FlatSpec with ScalaFutures with Matchers
     agentClient.pass(serviceId)
 
     val r = new ConsulServiceResolver(consul)
-    r.lookupService(HRL(s"hb://$serviceName")).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(15533)))
+    r.lookupService(req(serviceName)).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(15533)))
 
     agentClient.deregister(serviceId)
   }
 
   "Not existing service" should "fail fast" in {
     val r = new ConsulServiceResolver(consul)
-    r.lookupService(HRL("hb://test-service")).runAsync.failed.futureValue shouldBe a[NoTransportRouteException]
+    r.lookupService(req("test-service")).runAsync.failed.futureValue shouldBe a[NoTransportRouteException]
   }
 
   "Service" should "update on change" in {
@@ -50,7 +50,7 @@ class ConsulServiceResolverSpec extends FlatSpec with ScalaFutures with Matchers
     val lock = new Object
     val r = new ConsulServiceResolver(consul)
 
-    val c = r.serviceObservable(HRL(s"hb://$serviceName")).subscribe(seq ⇒ {
+    val c = r.serviceObservable(req(serviceName)).subscribe(seq ⇒ {
       lock.synchronized {
         if (seq.nonEmpty) {
           agentClient.fail(serviceId)
@@ -80,5 +80,10 @@ class ConsulServiceResolverSpec extends FlatSpec with ScalaFutures with Matchers
 
   override def afterAll(): Unit = {
     consul.destroy()
+  }
+
+  def req(serviceName: String): DynamicRequest = {
+    import com.hypertino.hyperbus.model.MessagingContext.Implicits.emptyContext
+    DynamicRequest(HRL(s"hb://$serviceName"), Method.GET, EmptyBody)
   }
 }
