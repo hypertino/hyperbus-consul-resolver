@@ -9,8 +9,7 @@ name := "hyperbus-consul-resolver"
 version := "0.1-SNAPSHOT"
 
 libraryDependencies ++= Seq(
-  "com.hypertino"   %% "hyperbus-transport" % "0.2-SNAPSHOT",
-  "com.hypertino"   %% "hyperbus-model" % "0.2-SNAPSHOT",
+  "com.hypertino"   %% "hyperbus" % "0.2-SNAPSHOT",
   "com.orbitz.consul" % "consul-client" % "0.15.0",
   "org.scalamock"   %% "scalamock-scalatest-support" % "3.5.0" % "test",
   "ch.qos.logback" % "logback-classic" % "1.1.8" % "test",

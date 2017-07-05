@@ -1,9 +1,8 @@
 package com.hypertino.transport.resolvers
 
-import java.net.URI
 import java.util
 
-import com.hypertino.hyperbus.model.{HRL, RequestBase}
+import com.hypertino.hyperbus.model.RequestBase
 import com.hypertino.hyperbus.transport.api.{NoTransportRouteException, ServiceEndpoint, ServiceResolver}
 import com.hypertino.hyperbus.transport.resolvers.PlainEndpoint
 import com.orbitz.consul.Consul
