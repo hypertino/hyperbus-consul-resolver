@@ -19,7 +19,7 @@ class ConsulServiceResolverSpec extends FlatSpec with ScalaFutures with Matchers
     val serviceName = "test-service-1"
     val serviceId = "1"
 
-    agentClient.register(15533, 3L, serviceName, serviceId)
+    agentClient.register(15533, 3L, "hb-" + serviceName, serviceId)
     agentClient.pass(serviceId)
 
     val r = new ConsulServiceResolver(consul)
@@ -39,7 +39,7 @@ class ConsulServiceResolverSpec extends FlatSpec with ScalaFutures with Matchers
     val serviceId = "3"
     agentClient.deregister(serviceId)
 
-    agentClient.register(15533, 3L, serviceName, serviceId)
+    agentClient.register(15533, 3L, "hb-" + serviceName, serviceId)
     agentClient.pass(serviceId)
 
     @volatile var becomeAlive = false

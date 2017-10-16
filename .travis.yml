@@ -16,6 +16,7 @@ git:
 before_install:
 - sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
 - git submodule update --init --recursive
+  - docker run -d -p 127.0.0.1:8500:8500 consul:0.9.3
 env:
   global:
   - secure: addViXxDfNXkVvj+5IIIase2QBX9yOX8r6xGa9vNYcOfP+OfxU+aFER5s3BygmY2PQ/9IkbdSxcAxW56zZAnU2z6BEfckun4PSvgf32FsqD1BOabO+ZHd3uPrXgALbkPlnmCWSE+BjTSPghGDOSYxUht81jfFdFDkYmlFalGqO7AunnoSQs5WL3tolhrY1gbdSM4VTTzmX6sGxSmqXo4iYOnomqWE+TKmxMWNoQGGaHN8jzLeLEQcWN4jS6JUBimg7KchMeOtmdfrsBYW9cUg9GtQ9DfxglkahFURrA4lCXTEoiZ6785pRiGY9DUv9ojm30O8b5i/TKPP2SxEJ4z7wlRT9kllv7ZQrpM1iG920/ArmpDpeuIVO08sejqeSZ1wWQWGLDlUHMDUS5NUeGfxyyRZ22qnUeRtWT3HHkinIvWsWeW+AQRrmIBxFlHgT1i4Wj3eb/ZulBy2bc394ZKr95NbyabHhpSc21qmihkoKiu2e/SeC+MlkpMyYNq8+/zi20928cXehWh4YqoRzuLJpSU9dcBhQnfWqVsWGHNOldTSg49e2iDJ7d5rokAqKaYWKOHhEL2nhhhKw5qqnGi0N2JRAum7I4Kkb3YmYAlwtd9XaClBQEDxu874eLUPtvo3/U/mpBu9v8zAyF0t9K5XRdNkE+2NrXL2YV6NkLO08A=

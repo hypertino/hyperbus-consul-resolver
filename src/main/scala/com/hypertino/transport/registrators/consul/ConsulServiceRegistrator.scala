@@ -18,7 +18,7 @@ import scala.util.control.NonFatal
 case class ConsulServiceResolverConfig(
                                         port: Int,
                                         nodeId: String,
-                                        updateInterval: FiniteDuration = 3.seconds,
+                                        updateInterval: FiniteDuration = 3.seconds
                                       )
 
 class ConsulServiceRegistratorException(message: String) extends RuntimeException(message)
