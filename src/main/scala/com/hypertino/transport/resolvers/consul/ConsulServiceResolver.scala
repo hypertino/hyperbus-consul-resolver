@@ -1,13 +1,15 @@
-package com.hypertino.transport.resolvers
+package com.hypertino.transport.resolvers.consul
 
 import java.util
 
 import com.hypertino.hyperbus.model.RequestBase
 import com.hypertino.hyperbus.transport.api.{NoTransportRouteException, ServiceEndpoint, ServiceResolver}
 import com.hypertino.hyperbus.transport.resolvers.PlainEndpoint
+import com.hypertino.transport.util.consul.ConsulConfigLoader
 import com.orbitz.consul.Consul
 import com.orbitz.consul.cache.{ConsulCache, ServiceHealthCache, ServiceHealthKey}
 import com.orbitz.consul.model.health.ServiceHealth
+import com.typesafe.config.Config
 import monix.execution.Scheduler
 import monix.reactive.Observable
 import monix.reactive.subjects.ConcurrentSubject
@@ -15,14 +17,15 @@ import monix.reactive.subjects.ConcurrentSubject
 class ConsulServiceResolver(consul: Consul)
                            (implicit val scheduler: Scheduler) extends ServiceResolver {
 
-  def this()(implicit scheduler: Scheduler) = this(Consul.builder().build())
+  def this(config: Config)(implicit scheduler: Scheduler) = this(ConsulConfigLoader(config))
 
   override def serviceObservable(message: RequestBase): Observable[Seq[ServiceEndpoint]] = {
     message.headers.hrl.service.map { serviceName ⇒
+      val consulServiceName = "hb-" + serviceName
       val subject = ConcurrentSubject.publishToOne[Seq[ServiceEndpoint]]
       val healthClient = consul.healthClient
 
-      val svHealth = ServiceHealthCache.newCache(healthClient, serviceName)
+      val svHealth = ServiceHealthCache.newCache(healthClient, consulServiceName)
       val listener = new ConsulCache.Listener[ServiceHealthKey, ServiceHealth] {
         override def notify(newValues: util.Map[ServiceHealthKey, ServiceHealth]): Unit = {
           import scala.collection.JavaConverters._
