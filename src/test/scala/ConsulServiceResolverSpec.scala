@@ -1,5 +1,3 @@
-package abc
-
 import com.hypertino.hyperbus.transport.api.NoTransportRouteException
 import com.hypertino.hyperbus.transport.resolvers.PlainEndpoint
 import com.hypertino.transport.resolvers.consul.ConsulServiceResolver

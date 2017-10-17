@@ -1,5 +1,3 @@
-package abc
-
 import com.hypertino.hyperbus.model.{DynamicRequest, EmptyBody, HRL, Method}
 import com.orbitz.consul.Consul
 import org.scalatest.{BeforeAndAfterAll, Suite}
