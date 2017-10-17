@@ -13,7 +13,7 @@ class ConsulServiceRegistratorSpec extends FlatSpec with ScalaFutures with Match
   import monix.execution.Scheduler.Implicits.global
 
   implicit val defaultPatience =
-    PatienceConfig(timeout = Span(4, Seconds), interval = Span(300, Millis))
+    PatienceConfig(timeout = Span(10, Seconds), interval = Span(300, Millis))
 
   "Service" should "register" in {
     val requestMatcher = RequestMatcher("hb://user", Method.GET)
@@ -32,13 +32,13 @@ class ConsulServiceRegistratorSpec extends FlatSpec with ScalaFutures with Match
   }
 
   it should "deregister" in {
-    val requestMatcher = RequestMatcher("hb://user", Method.GET)
+    val requestMatcher = RequestMatcher("hb://auth", Method.GET)
     val serviceRegistrator = new ConsulServiceRegistrator(consul, ConsulServiceResolverConfig(123,"node-1"))
     val cancelable = serviceRegistrator.registerService(requestMatcher).runAsync.futureValue
     val r = new ConsulServiceResolver(consul)
     try {
       eventually {
-        r.lookupService(req("user")).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(123)))
+        r.lookupService(req("auth")).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(123)))
       }
     }
     finally {
@@ -46,7 +46,7 @@ class ConsulServiceRegistratorSpec extends FlatSpec with ScalaFutures with Match
     }
 
     eventually {
-      r.lookupService(req("user")).runAsync.failed.futureValue shouldBe a[NoTransportRouteException]
+      r.lookupService(req("auth")).runAsync.failed.futureValue shouldBe a[NoTransportRouteException]
     }
   }
 }
