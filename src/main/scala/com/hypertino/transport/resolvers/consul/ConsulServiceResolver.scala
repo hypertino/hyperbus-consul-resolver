@@ -39,10 +39,12 @@ class ConsulServiceResolver(consul: Consul)
       val subject = ConcurrentSubject.publishToOne[Seq[ServiceEndpoint]]
       val healthClient = consul.healthClient
 
-      val svHealth = healthCaches.get(consulServiceName, () => {
-        val v = ServiceHealthCache.newCache(healthClient, consulServiceName)
-        v.start()
-        v
+      val svHealth = healthCaches.get(consulServiceName, new Callable[ServiceHealthCache] {
+        override def call() = {
+          val v = ServiceHealthCache.newCache(healthClient, consulServiceName)
+          v.start()
+          v
+        }
       })
 
       val listener = new ConsulCache.Listener[ServiceHealthKey, ServiceHealth] {
