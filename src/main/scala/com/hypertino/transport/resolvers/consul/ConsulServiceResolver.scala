@@ -12,12 +12,13 @@ import com.orbitz.consul.Consul
 import com.orbitz.consul.cache.{ConsulCache, ServiceHealthCache, ServiceHealthKey}
 import com.orbitz.consul.model.health.ServiceHealth
 import com.typesafe.config.Config
+import com.typesafe.scalalogging.StrictLogging
 import monix.execution.Scheduler
 import monix.reactive.Observable
 import monix.reactive.subjects.ConcurrentSubject
 
 class ConsulServiceResolver(consul: Consul)
-                           (implicit val scheduler: Scheduler) extends ServiceResolver {
+                           (implicit val scheduler: Scheduler) extends ServiceResolver with StrictLogging {
 
   private val healthCaches: Cache[String, ServiceHealthCache] = CacheBuilder.newBuilder()
     .expireAfterAccess(60, TimeUnit.SECONDS)
@@ -63,13 +64,13 @@ class ConsulServiceResolver(consul: Consul)
               PlainEndpoint(i._1.getHost, Some(i._1.getPort))
             }
             .toSeq
+          logger.trace(s"Consul services notification for $serviceName: $seq")
           subject.onNext(seq)
         }
       }
-      svHealth.addListener(listener)
-      subject.doOnTerminate( _ ⇒
-        svHealth.removeListener(listener)
-      )
+      subject
+        .doAfterSubscribe(() ⇒ svHealth.addListener(listener))
+        .doOnTerminate(_ ⇒ svHealth.removeListener(listener))
     } getOrElse {
       Observable.raiseError(
         new NoTransportRouteException(s"Request doesn't specify service name: ${message.headers.hrl}")
