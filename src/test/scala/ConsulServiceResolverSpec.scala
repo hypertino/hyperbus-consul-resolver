@@ -30,32 +30,32 @@ class ConsulServiceResolverSpec extends FlatSpec with ScalaFutures with Matchers
     agentClient.deregister(serviceId)
   }
 
-  it should "resolve when cache expires" in {
-    val agentClient = consul.agentClient
-    val serviceName = "test-service-2"
-    val serviceId = "2"
-
-    agentClient.register(15533, 20L, "hb-" + serviceName, serviceId)
-    agentClient.pass(serviceId)
-
-    val r = new ConsulServiceResolver(consul, csrConfig.copy(cachePeriodInSeconds=5))
-    eventually {
-      r.lookupService(req(serviceName)).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(15533)))
-    }
-    Thread.sleep(1500)
-    val count = 10000
-    println(s"Making $count lookups (should be cached) at ${new java.util.Date()}")
-    0 to 10000 map { _ ⇒
-      r.lookupService(req(serviceName)).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(15533)))
-    }
-    println(s"Completed $count lookups at ${new java.util.Date()}")
-    Thread.sleep(1500)
-    r.lookupService(req(serviceName)).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(15533)))
-    Thread.sleep(5000)
-    r.lookupService(req(serviceName)).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(15533)))
-    agentClient.deregister(serviceId)
-  }
-
+//  it should "resolve when cache expires" in {
+//    val agentClient = consul.agentClient
+//    val serviceName = "test-service-2"
+//    val serviceId = "2"
+//
+//    agentClient.register(15533, 20L, "hb-" + serviceName, serviceId)
+//    agentClient.pass(serviceId)
+//
+//    val r = new ConsulServiceResolver(consul, csrConfig.copy(cachePeriodInSeconds=5))
+//    eventually {
+//      r.lookupService(req(serviceName)).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(15533)))
+//    }
+//    Thread.sleep(1500)
+//    val count = 10000
+//    println(s"Making $count lookups (should be cached) at ${new java.util.Date()}")
+//    0 to 10000 map { _ ⇒
+//      r.lookupService(req(serviceName)).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(15533)))
+//    }
+//    println(s"Completed $count lookups at ${new java.util.Date()}")
+//    Thread.sleep(1500)
+//    r.lookupService(req(serviceName)).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(15533)))
+//    Thread.sleep(5000)
+//    r.lookupService(req(serviceName)).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(15533)))
+//    agentClient.deregister(serviceId)
+//  }
+//
   "Not existing service" should "fail fast" in {
     val r = new ConsulServiceResolver(consul, ConsulServiceResolverConfig(ConsulServiceMap.empty))
     r.lookupService(req("test-service")).runAsync.failed.futureValue shouldBe a[NoTransportRouteException]
