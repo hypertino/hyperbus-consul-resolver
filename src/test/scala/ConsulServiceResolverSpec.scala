@@ -24,6 +24,7 @@ class ConsulServiceResolverSpec extends FlatSpec with ScalaFutures with Matchers
 
     val r = new ConsulServiceResolver(consul, csrConfig)
     eventually {
+      agentClient.pass(serviceId)
       r.lookupService(req(serviceName)).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(15533)))
     }
     agentClient.deregister(serviceId)
