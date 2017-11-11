@@ -1,6 +1,8 @@
 import com.hypertino.hyperbus.transport.api.NoTransportRouteException
+import com.hypertino.hyperbus.transport.api.matchers.RegexMatcher
 import com.hypertino.hyperbus.transport.resolvers.PlainEndpoint
-import com.hypertino.transport.resolvers.consul.ConsulServiceResolver
+import com.hypertino.transport.resolvers.consul.{ConsulServiceResolver, ConsulServiceResolverConfig}
+import com.hypertino.transport.util.consul.ConsulServiceMap
 import monix.execution.Ack.Continue
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Millis, Seconds, Span}
@@ -17,17 +19,18 @@ class ConsulServiceResolverSpec extends FlatSpec with ScalaFutures with Matchers
     val serviceName = "test-service-1"
     val serviceId = "1"
 
-    agentClient.register(15533, 3L, "hb-" + serviceName, serviceId)
+    agentClient.register(15533, 10L, "hb-" + serviceName, serviceId)
     agentClient.pass(serviceId)
 
-    val r = new ConsulServiceResolver(consul)
-    r.lookupService(req(serviceName)).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(15533)))
-
+    val r = new ConsulServiceResolver(consul, csrConfig)
+    eventually {
+      r.lookupService(req(serviceName)).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(15533)))
+    }
     agentClient.deregister(serviceId)
   }
 
   "Not existing service" should "fail fast" in {
-    val r = new ConsulServiceResolver(consul)
+    val r = new ConsulServiceResolver(consul, ConsulServiceResolverConfig(ConsulServiceMap.empty))
     r.lookupService(req("test-service")).runAsync.failed.futureValue shouldBe a[NoTransportRouteException]
   }
 
@@ -43,7 +46,7 @@ class ConsulServiceResolverSpec extends FlatSpec with ScalaFutures with Matchers
     @volatile var becomeAlive = false
     @volatile var becomeDead = false
     val lock = new Object
-    val r = new ConsulServiceResolver(consul)
+    val r = new ConsulServiceResolver(consul, csrConfig)
 
     val c = r.serviceObservable(req(serviceName)).subscribe(seq ⇒ {
       lock.synchronized {
@@ -72,4 +75,6 @@ class ConsulServiceResolverSpec extends FlatSpec with ScalaFutures with Matchers
     c.cancel()
     agentClient.deregister(serviceId)
   }
+
+  def csrConfig = ConsulServiceResolverConfig(ConsulServiceMap(Seq(RegexMatcher("^(.+)$") → "hb-$1")))
 }

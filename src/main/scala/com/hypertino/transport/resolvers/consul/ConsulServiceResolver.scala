@@ -7,21 +7,30 @@ import com.google.common.cache.{Cache, CacheBuilder, RemovalListener, RemovalNot
 import com.hypertino.hyperbus.model.RequestBase
 import com.hypertino.hyperbus.transport.api.{NoTransportRouteException, ServiceEndpoint, ServiceResolver}
 import com.hypertino.hyperbus.transport.resolvers.PlainEndpoint
-import com.hypertino.transport.util.consul.ConsulConfigLoader
+import com.hypertino.transport.util.consul.{ConsulConfigLoader, ConsulServiceMap}
 import com.orbitz.consul.Consul
 import com.orbitz.consul.cache.{ConsulCache, ServiceHealthCache, ServiceHealthKey}
 import com.orbitz.consul.model.health.ServiceHealth
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.StrictLogging
-import monix.execution.Scheduler
+import monix.execution.{Cancelable, Scheduler}
+import monix.execution.atomic.{AtomicAny, AtomicInt}
 import monix.reactive.Observable
 import monix.reactive.subjects.ConcurrentSubject
+import com.hypertino.binders.config.ConfigBinders._
 
-class ConsulServiceResolver(consul: Consul)
+private [consul] case class LC(subscription: Cancelable, healthCache: ServiceHealthCache, latest: AtomicAny[Seq[ServiceEndpoint]])
+
+case class ConsulServiceResolverConfig(
+                                        serviceMap: ConsulServiceMap = ConsulServiceMap.empty
+                                      )
+
+class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolverConfig)
                            (implicit val scheduler: Scheduler) extends ServiceResolver with StrictLogging {
 
   private val healthCaches: Cache[String, ServiceHealthCache] = CacheBuilder.newBuilder()
     .expireAfterAccess(60, TimeUnit.SECONDS)
+    .weakValues()
     .removalListener(new RemovalListener[String, ServiceHealthCache] {
       override def onRemoval(notification: RemovalNotification[String, ServiceHealthCache]) = {
         val svHealth = notification.getValue
@@ -32,11 +41,27 @@ class ConsulServiceResolver(consul: Consul)
     })
     .build[String,ServiceHealthCache]()
 
-  def this(config: Config)(implicit scheduler: Scheduler) = this(ConsulConfigLoader(config))
+  private val lookupCache: Cache[String, LC] = CacheBuilder.newBuilder()
+    .expireAfterAccess(60, TimeUnit.SECONDS)
+    .removalListener(new RemovalListener[String, LC] {
+      override def onRemoval(notification: RemovalNotification[String, LC]) = {
+        val lc = notification.getValue
+        if (lc != null) {
+          lc.subscription.cancel()
+          lc.healthCache.stop()
+        }
+      }
+    })
+    .build[String,LC]()
+
+  def this(config: Config)(implicit scheduler: Scheduler) = this(
+    ConsulConfigLoader(config),
+    config.read[ConsulServiceResolverConfig]("service-resolver")
+  )
 
   override def serviceObservable(message: RequestBase): Observable[Seq[ServiceEndpoint]] = {
     message.headers.hrl.service.map { serviceName ⇒
-      val consulServiceName = "hb-" + serviceName
+      val consulServiceName = resolverConfig.serviceMap.mapService(serviceName).getOrElse(serviceName)
       val subject = ConcurrentSubject.publishToOne[Seq[ServiceEndpoint]]
       val healthClient = consul.healthClient
 

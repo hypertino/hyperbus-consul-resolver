@@ -4,7 +4,7 @@ import com.hypertino.binders.config.ConfigBinders._
 import com.hypertino.hyperbus.model.{HRL, HeaderHRL}
 import com.hypertino.hyperbus.transport.api.ServiceRegistrator
 import com.hypertino.hyperbus.transport.api.matchers.{RequestMatcher, Specific}
-import com.hypertino.transport.util.consul.ConsulConfigLoader
+import com.hypertino.transport.util.consul.{ConsulConfigLoader, ConsulServiceMap}
 import com.orbitz.consul.model.agent.{ImmutableRegistration, Registration}
 import com.orbitz.consul.{Consul, NotRegisteredException}
 import com.typesafe.config.Config
@@ -15,20 +15,22 @@ import monix.execution.{Cancelable, Scheduler}
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
 
-case class ConsulServiceResolverConfig(
-                                        port: Int,
+case class ConsulServiceRegistratorConfig(
                                         nodeId: String,
+                                        address: Option[String] = None,
+                                        port: Option[Int],
+                                        serviceMap: ConsulServiceMap = ConsulServiceMap.empty,
                                         updateInterval: FiniteDuration = 3.seconds
                                       )
 
 class ConsulServiceRegistratorException(message: String) extends RuntimeException(message)
 
-class ConsulServiceRegistrator(consul: Consul, resolverConfig: ConsulServiceResolverConfig)
+class ConsulServiceRegistrator(consul: Consul, registratorConfig: ConsulServiceRegistratorConfig)
                               (implicit val scheduler: Scheduler) extends ServiceRegistrator with StrictLogging {
 
   def this(config: Config)(implicit scheduler: Scheduler) = this(
     ConsulConfigLoader(config),
-    config.read[ConsulServiceResolverConfig]("service-resolver")
+    config.read[ConsulServiceRegistratorConfig]("service-registrator")
   )
 
   override def registerService(requestMatcher: RequestMatcher): Task[Cancelable] = {
@@ -37,7 +39,7 @@ class ConsulServiceRegistrator(consul: Consul, resolverConfig: ConsulServiceReso
         val hrl = HRL.fromURL(url)
         Task.now {
           val updater = new ServiceUpdater(hrl)
-          val cancelable = scheduler.scheduleWithFixedDelay(0.seconds,resolverConfig.updateInterval/3) {
+          val cancelable = scheduler.scheduleWithFixedDelay(0.seconds,registratorConfig.updateInterval/3) {
             updater.update()
           }
 
@@ -54,24 +56,25 @@ class ConsulServiceRegistrator(consul: Consul, resolverConfig: ConsulServiceReso
   }
 
   class ServiceUpdater(hrl: HRL) extends AutoCloseable {
-    private val serviceName = "hb-" + hrl.service.get
-    private val serviceId = serviceName + "-" + resolverConfig.nodeId
+    private val serviceName = registratorConfig.serviceMap.mapService(hrl.service.get).getOrElse(hrl.service.get)
+    private val serviceId = serviceName + "-" + registratorConfig.nodeId
     private var isRegistered = false
 
     def update(): Unit = {
       try {
         val agentClient = consul.agentClient
         if (!isRegistered) {
-          logger.info(s"Registering service in consul: $serviceName [$serviceId] with config $resolverConfig")
-          val registration = ImmutableRegistration
+          logger.info(s"Registering service in consul: $serviceName [$serviceId] with config $registratorConfig")
+          val registrationBuilder = ImmutableRegistration
             .builder()
-            .port(resolverConfig.port)
-            .check(Registration.RegCheck.ttl(resolverConfig.updateInterval.toSeconds))
+            .check(Registration.RegCheck.ttl(registratorConfig.updateInterval.toSeconds))
             .name(serviceName)
             .id(serviceId)
-            .build()
 
-          agentClient.register(registration)
+          registratorConfig.port.foreach(registrationBuilder.port)
+          registratorConfig.address.foreach(registrationBuilder.address)
+
+          agentClient.register(registrationBuilder.build())
           isRegistered = true
         }
         else {
