@@ -63,6 +63,7 @@ class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolve
 
   override def lookupServiceEndpoints(message: RequestBase): Task[Seq[ServiceEndpoint]] = {
     message.headers.hrl.service.map { serviceName ⇒
+      logger.trace(s"lookupServiceEndpoints for $serviceName")
       val c = lookupCache.get(serviceName, new Callable[LC] {
         override def call() = {
           val cancelable = serviceObservable(message).subscribe()
@@ -78,6 +79,7 @@ class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolve
       })
 
       c.latest.get.map { passing ⇒
+        logger.trace(s"lookupServiceEndpoints for $serviceName serving from cache: $passing")
         Task.now(passing)
       } getOrElse {
         Task.create[Seq[ServiceEndpoint]] { (_, callback) ⇒
@@ -106,6 +108,7 @@ class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolve
 
   override def serviceObservable(message: RequestBase): Observable[Seq[ServiceEndpoint]] = {
     message.headers.hrl.service.map { serviceName ⇒
+      logger.trace(s"serviceObservable for $serviceName")
       val consulServiceName = resolverConfig.serviceMap.mapService(serviceName).getOrElse(serviceName)
       val subject = ConcurrentSubject.publishToOne[Seq[ServiceEndpoint]]
       val healthClient = consul.healthClient
