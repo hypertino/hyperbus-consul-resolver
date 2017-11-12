@@ -79,12 +79,9 @@ class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolve
       })
 
       c.latest.get.map { passing ⇒
-        logger.trace(s"lookupServiceEndpoints for $serviceName serving from cache: $passing")
         Task.now(passing)
       } getOrElse {
-        logger.trace(s"lookupServiceEndpoints for $serviceName creating callback task (DEBUG)")
         Task.create[Seq[ServiceEndpoint]] { (_, callback) ⇒
-          logger.trace(s"lookupServiceEndpoints for $serviceName creating listener $this (DEBUG)")
           val cancelableListener = new ConsulCache.Listener[ServiceHealthKey, ServiceHealth] with Cancelable {
             override def notify(newValues: util.Map[ServiceHealthKey, ServiceHealth]): Unit = {
               val passing = ConsulServiceResolverUtil.passing(newValues)
@@ -94,11 +91,9 @@ class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolve
             }
 
             override def cancel(): Unit = {
-              logger.trace(s"lookupServiceEndpoints for $serviceName task canceled $this (DEBUG)")
               c.healthCache.removeListener(this)
             }
           }
-          logger.trace(s"lookupServiceEndpoints for $serviceName task $this listening to ${c.healthCache} (DEBUG)")
           c.healthCache.addListener(cancelableListener)
           cancelableListener
         }
