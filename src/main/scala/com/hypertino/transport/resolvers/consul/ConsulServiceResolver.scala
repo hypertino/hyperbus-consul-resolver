@@ -14,15 +14,19 @@ import com.orbitz.consul.model.health.ServiceHealth
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.StrictLogging
 import monix.execution.{Cancelable, Scheduler}
-import monix.execution.atomic.{AtomicAny, AtomicInt}
+import monix.execution.atomic.AtomicAny
 import monix.reactive.Observable
 import monix.reactive.subjects.ConcurrentSubject
 import com.hypertino.binders.config.ConfigBinders._
 import monix.eval.Task
 
+import scala.concurrent.Promise
 import scala.util.{Failure, Success}
 
-private [consul] case class LC(subscription: Cancelable, healthCache: ServiceHealthCache, latest: AtomicAny[Option[Seq[ServiceEndpoint]]])
+private [consul] case class LC(subscription: Cancelable,
+                               healthCache: ServiceHealthCache,
+                               latestTask: AtomicAny[Task[Seq[ServiceEndpoint]]]
+                              )
 
 case class ConsulServiceResolverConfig(
                                         serviceMap: ConsulServiceMap = ConsulServiceMap.empty,
@@ -63,13 +67,16 @@ class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolve
 
   override def lookupServiceEndpoints(message: RequestBase): Task[Seq[ServiceEndpoint]] = {
     message.headers.hrl.service.map { serviceName ⇒
-      logger.trace(s"lookupServiceEndpoints for $serviceName")
       val c = lookupCache.get(serviceName, new Callable[LC] {
         override def call() = {
-          val cancelable = serviceObservable(message).subscribe()
+          val promise = Promise[Seq[ServiceEndpoint]]
+          val cancelable = serviceObservable(message)
+            .doOnStart(passing ⇒ promise.complete(Success(passing)))
+            .subscribe()
           val svHealth = healthCaches.getIfPresent(serviceName)
+          val task = Task.fromFuture(promise.future).memoize
           if (svHealth != null) {
-            LC(cancelable, svHealth, AtomicAny(None))
+            LC(cancelable, svHealth, AtomicAny(task))
           }
           else {
             cancelable.cancel()
@@ -78,27 +85,7 @@ class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolve
         }
       })
 
-      c.latest.get.map { passing ⇒
-        Task.now(passing)
-      } getOrElse {
-        Task.create[Seq[ServiceEndpoint]] { (_, callback) ⇒
-          val cancelableListener = new ConsulCache.Listener[ServiceHealthKey, ServiceHealth] with Cancelable {
-            override def notify(newValues: util.Map[ServiceHealthKey, ServiceHealth]): Unit = {
-              val passing = ConsulServiceResolverUtil.passing(newValues)
-              logger.trace(s"Consul services notification while resolving for $serviceName: $passing")
-              c.healthCache.removeListener(this)
-              callback(Success(passing))
-            }
-
-            override def cancel(): Unit = {
-              c.healthCache.removeListener(this)
-            }
-          }
-          c.healthCache.awaitInitialized(100, TimeUnit.MILLISECONDS) // todo: remove this after next consul-client release
-          c.healthCache.addListener(cancelableListener)
-          cancelableListener
-        }
-      }
+      c.latestTask.get
     } getOrElse {
       Task.raiseError(
         new NoTransportRouteException(s"Request doesn't specify service name: ${message.headers.hrl}")
@@ -127,7 +114,7 @@ class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolve
           logger.trace(s"Consul services notification for $serviceName/$consulServiceName: $passing")
           val lc = lookupCache.getIfPresent(serviceName)
           if (lc != null) {
-            lc.latest.set(Some(passing))
+            lc.latestTask.set(Task.now(passing).memoize)
           }
           subject.onNext(passing)
         }
