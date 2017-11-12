@@ -94,6 +94,7 @@ class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolve
               c.healthCache.removeListener(this)
             }
           }
+          c.healthCache.awaitInitialized(100, TimeUnit.MILLISECONDS) // todo: remove this after next consul-client release
           c.healthCache.addListener(cancelableListener)
           cancelableListener
         }
@@ -116,7 +117,6 @@ class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolve
         override def call() = {
           val v = ServiceHealthCache.newCache(healthClient, consulServiceName)
           v.start()
-          v.awaitInitialized(500, TimeUnit.MILLISECONDS) // todo: remove this after next consul-client release
           v
         }
       })
