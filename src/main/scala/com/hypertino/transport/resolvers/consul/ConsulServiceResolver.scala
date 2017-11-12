@@ -116,6 +116,7 @@ class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolve
         override def call() = {
           val v = ServiceHealthCache.newCache(healthClient, consulServiceName)
           v.start()
+          v.awaitInitialized(500, TimeUnit.MILLISECONDS) // todo: remove this after next consul-client release
           v
         }
       })
