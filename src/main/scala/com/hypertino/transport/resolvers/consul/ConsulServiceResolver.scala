@@ -26,6 +26,7 @@ import monix.execution.atomic.AtomicAny
 import monix.reactive.Observable
 import monix.reactive.subjects.ConcurrentSubject
 import com.hypertino.binders.config.ConfigBinders._
+import com.orbitz.consul.option.{ConsistencyMode, ImmutableQueryOptions}
 import monix.eval.Task
 
 import scala.concurrent.Promise
@@ -38,7 +39,9 @@ private [consul] case class LC(subscription: Cancelable,
 
 case class ConsulServiceResolverConfig(
                                         serviceMap: ConsulServiceMap = ConsulServiceMap.empty,
-                                        cachePeriodInSeconds: Int = 60
+                                        cachePeriodInSeconds: Int = 60,
+                                        consistencyMode: String = ConsistencyMode.CONSISTENT.toString,
+                                        watchSeconds: Int = 10
                                       )
 
 class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolverConfig)
@@ -110,7 +113,17 @@ class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolve
 
       val svHealth = healthCaches.get(serviceName, new Callable[ServiceHealthCache] {
         override def call() = {
-          val v = ServiceHealthCache.newCache(healthClient, consulServiceName)
+          val queryOptions = ImmutableQueryOptions.builder()
+            .consistencyMode(ConsistencyMode.valueOf(resolverConfig.consistencyMode))
+            .build()
+
+          val v = ServiceHealthCache.newCache(
+            healthClient,
+            consulServiceName,
+            true,
+            resolverConfig.watchSeconds,
+            queryOptions
+          )
           v.start()
           v
         }
