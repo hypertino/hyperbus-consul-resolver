@@ -30,6 +30,7 @@ import com.orbitz.consul.option.{ConsistencyMode, ImmutableQueryOptions}
 import monix.eval.Task
 
 import scala.concurrent.Promise
+import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
 private [consul] case class LC(subscription: Cancelable,
@@ -39,9 +40,9 @@ private [consul] case class LC(subscription: Cancelable,
 
 case class ConsulServiceResolverConfig(
                                         serviceMap: ConsulServiceMap = ConsulServiceMap.empty,
-                                        cachePeriodInSeconds: Int = 60,
+                                        cachePeriod: FiniteDuration = 60.seconds,
                                         consistencyMode: String = ConsistencyMode.CONSISTENT.toString,
-                                        watchSeconds: Int = 10
+                                        watchTime: FiniteDuration = 10.seconds
                                       )
 
 class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolverConfig)
@@ -60,7 +61,7 @@ class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolve
     .build[String,ServiceHealthCache]()
 
   private val lookupCache: Cache[String, LC] = CacheBuilder.newBuilder()
-    .expireAfterAccess(resolverConfig.cachePeriodInSeconds, TimeUnit.SECONDS)
+    .expireAfterAccess(resolverConfig.cachePeriod.toMillis, TimeUnit.MILLISECONDS)
     .removalListener(new RemovalListener[String, LC] {
       override def onRemoval(notification: RemovalNotification[String, LC]) = {
         val lc = notification.getValue
@@ -121,7 +122,7 @@ class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolve
             healthClient,
             consulServiceName,
             true,
-            resolverConfig.watchSeconds,
+            resolverConfig.watchTime.toSeconds.toInt,
             queryOptions
           )
           v.start()
