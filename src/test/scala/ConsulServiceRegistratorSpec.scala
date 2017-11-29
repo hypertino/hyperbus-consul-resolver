@@ -63,7 +63,7 @@ class ConsulServiceRegistratorSpec extends FlatSpec with ScalaFutures with Match
   it should "load config" in {
     val config = ConfigFactory.parseString(
       """
-        service-resolver: {
+        service-registrator: {
           node-id: 1
           port: 12345
           service-map: {
@@ -74,7 +74,7 @@ class ConsulServiceRegistratorSpec extends FlatSpec with ScalaFutures with Match
       """)
 
     import com.hypertino.binders.config.ConfigBinders._
-    val r = config.read[ConsulServiceRegistratorConfig]("service-resolver")
+    val r = config.read[ConsulServiceRegistratorConfig]("service-registrator")
     r.nodeId shouldBe "1"
     r.port shouldBe Some(12345)
     r.serviceMap shouldBe ConsulServiceMap(Seq(
