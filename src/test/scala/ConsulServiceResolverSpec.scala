@@ -15,6 +15,7 @@ import monix.execution.Ack.Continue
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Millis, Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+import scala.concurrent.duration._
 
 class ConsulServiceResolverSpec extends FlatSpec with ScalaFutures with Matchers with Eventually with BeforeAndAfterAll with TestHelper {
   import monix.execution.Scheduler.Implicits.global
@@ -46,7 +47,7 @@ class ConsulServiceResolverSpec extends FlatSpec with ScalaFutures with Matchers
     agentClient.register(15533, 20L, "hb-" + serviceName, serviceId)
     agentClient.pass(serviceId)
 
-    val r = new ConsulServiceResolver(consul, csrConfig.copy(cachePeriodInSeconds=5))
+    val r = new ConsulServiceResolver(consul, csrConfig.copy(cachePeriod=5.seconds))
     eventually {
       r.lookupService(req(serviceName)).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(15533)))
     }
