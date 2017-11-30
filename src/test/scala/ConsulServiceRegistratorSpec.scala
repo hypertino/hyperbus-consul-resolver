@@ -60,6 +60,44 @@ class ConsulServiceRegistratorSpec extends FlatSpec with ScalaFutures with Match
     }
   }
 
+  it should "register once all resource handlers in one service" in {
+    val requestMatcher1 = RequestMatcher("hb://user/1", Method.GET)
+    val requestMatcher2 = RequestMatcher("hb://user/2", Method.GET)
+
+    val serviceRegistrator = new ConsulServiceRegistrator(consul, ConsulServiceRegistratorConfig("node-1",None,Some(123),serviceMap))
+    val r = new ConsulServiceResolver(consul, csrConfig)
+    val cancelable1 = serviceRegistrator.registerService(requestMatcher1).runAsync.futureValue
+    val cancelable2 = serviceRegistrator.registerService(requestMatcher2).runAsync.futureValue
+    try {
+      try {
+        val r = new ConsulServiceResolver(consul, csrConfig)
+        eventually {
+          r.lookupService(req("user/1")).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(123)))
+        }
+        eventually {
+          r.lookupService(req("user/2")).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(123)))
+        }
+
+      }
+      finally {
+        cancelable1.cancel()
+      }
+
+      Thread.sleep(5000)
+
+      r.lookupService(req("user/1")).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(123)))
+      r.lookupService(req("user/2")).runAsync.futureValue should equal(PlainEndpoint("127.0.0.1", Some(123)))
+    }
+    finally {
+      cancelable2.cancel()
+    }
+
+    eventually {
+      r.lookupService(req("user/1")).runAsync.failed.futureValue shouldBe a[NoTransportRouteException]
+      r.lookupService(req("user/2")).runAsync.failed.futureValue shouldBe a[NoTransportRouteException]
+    }
+  }
+
   it should "load config" in {
     val config = ConfigFactory.parseString(
       """

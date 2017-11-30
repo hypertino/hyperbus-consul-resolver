@@ -9,7 +9,7 @@ name := "hyperbus-consul-resolver"
 version := "0.3-SNAPSHOT"
 
 libraryDependencies ++= Seq(
-  "com.hypertino" %% "hyperbus" % "0.3-SNAPSHOT",
+  "com.hypertino" %% "hyperbus" % "0.5-SNAPSHOT",
   "com.hypertino" %% "typesafe-config-binders" % "0.2.0",
   "com.orbitz.consul" % "consul-client" % "0.17.0",
   "com.google.guava" % "guava" % "22.0",

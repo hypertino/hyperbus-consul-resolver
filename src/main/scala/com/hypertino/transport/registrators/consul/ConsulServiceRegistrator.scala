@@ -18,8 +18,10 @@ import com.orbitz.consul.{Consul, NotRegisteredException}
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.StrictLogging
 import monix.eval.Task
+import monix.execution.atomic.AtomicInt
 import monix.execution.{Cancelable, Scheduler}
 
+import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
 
@@ -36,6 +38,9 @@ class ConsulServiceRegistratorException(message: String) extends RuntimeExceptio
 class ConsulServiceRegistrator(consul: Consul, registratorConfig: ConsulServiceRegistratorConfig)
                               (implicit val scheduler: Scheduler) extends ServiceRegistrator with StrictLogging {
 
+  private val serviceUpdaters = mutable.Map[(String, String), ServiceUpdater]()
+  private val lock = new Object
+
   def this(config: Config)(implicit scheduler: Scheduler) = this(
     ConsulConfigLoader(config),
     config.read[ConsulServiceRegistratorConfig]("service-registrator")
@@ -46,15 +51,22 @@ class ConsulServiceRegistrator(consul: Consul, registratorConfig: ConsulServiceR
       case Some(Specific(url) :: tail) if tail.isEmpty ⇒
         val hrl = HRL.fromURL(url)
         Task.now {
-          val updater = new ServiceUpdater(hrl)
-          val cancelable = scheduler.scheduleWithFixedDelay(0.seconds,registratorConfig.updateInterval/3) {
-            updater.update()
+          val serviceName = registratorConfig.serviceMap.mapService(hrl.service.get).getOrElse(hrl.service.get)
+          val serviceId = serviceName + "-" + registratorConfig.nodeId
+          val updater = lock.synchronized {
+            val updater = serviceUpdaters.getOrElseUpdate((serviceName, serviceId), new ServiceUpdater(serviceName, serviceId))
+            updater.addRef()
+            updater
           }
 
           new Cancelable {
             override def cancel(): Unit = {
-              cancelable.cancel()
-              updater.close()
+              lock.synchronized {
+                if (updater.release()) {
+                  updater.close()
+                  serviceUpdaters.remove((serviceName, serviceId))
+                }
+              }
             }
           }
         }
@@ -63,12 +75,22 @@ class ConsulServiceRegistrator(consul: Consul, registratorConfig: ConsulServiceR
     }
   }
 
-  class ServiceUpdater(hrl: HRL) extends AutoCloseable {
-    private val serviceName = registratorConfig.serviceMap.mapService(hrl.service.get).getOrElse(hrl.service.get)
-    private val serviceId = serviceName + "-" + registratorConfig.nodeId
+  class ServiceUpdater(serviceName: String, serviceId: String) extends AutoCloseable {
     private var isRegistered = false
+    private val refCounter = AtomicInt(0)
+    @volatile private var schedulerCancelable: Cancelable = Cancelable.empty
 
-    def update(): Unit = {
+    def addRef(): Unit = {
+      if (refCounter.getAndIncrement() == 0) {
+        schedulerCancelable = scheduler.scheduleWithFixedDelay(0.seconds,registratorConfig.updateInterval/3)(this.update())
+      }
+    }
+
+    def release(): Boolean ={
+      refCounter.decrementAndGet() <= 0
+    }
+
+    private def update(): Unit = {
       try {
         val agentClient = consul.agentClient
         if (!isRegistered) {
@@ -103,6 +125,7 @@ class ConsulServiceRegistrator(consul: Consul, registratorConfig: ConsulServiceR
     override def close(): Unit = {
       try {
         logger.info(s"Deregistering service $serviceName [$serviceId]")
+        schedulerCancelable.cancel()
         val agentClient = consul.agentClient
         agentClient.deregister(serviceId)
       }
