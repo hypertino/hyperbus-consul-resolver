@@ -108,7 +108,7 @@ class ConsulServiceRegistrator(consul: Consul, registratorConfig: ConsulServiceR
           isRegistered = true
         }
         else {
-          logger.debug(s"Updating service in consul: $serviceName [$serviceId]")
+          logger.trace(s"Updating service in consul: $serviceName [$serviceId]")
           agentClient.pass(serviceId)
         }
       }
