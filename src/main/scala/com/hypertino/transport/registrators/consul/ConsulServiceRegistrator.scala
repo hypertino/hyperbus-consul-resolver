@@ -47,7 +47,7 @@ class ConsulServiceRegistrator(val consul: Consul, registratorConfig: ConsulServ
   )
 
   def this(config: Config)(implicit scheduler: Scheduler) = this(
-    config.read[ConsulServiceRegistratorConfig]("service-registrator")
+    config.root.read[ConsulServiceRegistratorConfig]
   )
 
   override def registerService(requestMatcher: RequestMatcher): Task[Cancelable] = {

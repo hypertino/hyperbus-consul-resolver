@@ -79,7 +79,7 @@ class ConsulServiceResolver(val consul: Consul, resolverConfig: ConsulServiceRes
   )
 
   def this(config: Config)(implicit scheduler: Scheduler) = this(
-    config.read[ConsulServiceResolverConfig]("service-resolver")
+    config.root.read[ConsulServiceResolverConfig]
   )
 
   override def lookupServiceEndpoints(message: RequestBase): Task[Seq[ServiceEndpoint]] = {
