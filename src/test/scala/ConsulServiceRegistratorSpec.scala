@@ -101,8 +101,11 @@ class ConsulServiceRegistratorSpec extends FlatSpec with ScalaFutures with Match
   it should "load config" in {
     val config = ConfigFactory.parseString(
       """
-        read-timeout: 60s
         service-registrator: {
+          consul: {
+            address: "localhost:8500"
+            read-timeout: 60s
+          }
           node-id: 1
           port: 12345
           service-map: {
