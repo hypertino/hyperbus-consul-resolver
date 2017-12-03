@@ -15,7 +15,7 @@ import com.google.common.cache.{Cache, CacheBuilder, RemovalListener, RemovalNot
 import com.hypertino.hyperbus.model.RequestBase
 import com.hypertino.hyperbus.transport.api.{NoTransportRouteException, ServiceEndpoint, ServiceResolver}
 import com.hypertino.hyperbus.transport.resolvers.PlainEndpoint
-import com.hypertino.transport.util.consul.{ConsulConfigLoader, ConsulServiceMap}
+import com.hypertino.transport.util.consul.{ConsulConfiguration, ConsulServiceMap}
 import com.orbitz.consul.Consul
 import com.orbitz.consul.cache.{ConsulCache, ServiceHealthCache, ServiceHealthKey}
 import com.orbitz.consul.model.health.ServiceHealth
@@ -39,13 +39,14 @@ private [consul] case class LC(subscription: Cancelable,
                               )
 
 case class ConsulServiceResolverConfig(
+                                        consul: ConsulConfiguration,
                                         serviceMap: ConsulServiceMap = ConsulServiceMap.empty,
                                         cachePeriod: FiniteDuration = 60.seconds,
                                         consistencyMode: String = ConsistencyMode.CONSISTENT.toString,
                                         watchTime: FiniteDuration = 10.seconds
                                       )
 
-class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolverConfig)
+class ConsulServiceResolver(val consul: Consul, resolverConfig: ConsulServiceResolverConfig)
                            (implicit val scheduler: Scheduler) extends ServiceResolver with StrictLogging {
 
   private val healthCaches: Cache[String, ServiceHealthCache] = CacheBuilder.newBuilder()
@@ -72,8 +73,12 @@ class ConsulServiceResolver(consul: Consul, resolverConfig: ConsulServiceResolve
     })
     .build[String,LC]()
 
+  def this(resolverConfig: ConsulServiceResolverConfig)(implicit scheduler: Scheduler) = this(
+    resolverConfig.consul.buildClient(),
+    resolverConfig
+  )
+
   def this(config: Config)(implicit scheduler: Scheduler) = this(
-    ConsulConfigLoader(config),
     config.read[ConsulServiceResolverConfig]("service-resolver")
   )
 

@@ -12,7 +12,7 @@ import com.hypertino.binders.config.ConfigBinders._
 import com.hypertino.hyperbus.model.{HRL, HeaderHRL}
 import com.hypertino.hyperbus.transport.api.ServiceRegistrator
 import com.hypertino.hyperbus.transport.api.matchers.{RequestMatcher, Specific}
-import com.hypertino.transport.util.consul.{ConsulConfigLoader, ConsulServiceMap}
+import com.hypertino.transport.util.consul.{ConsulConfiguration, ConsulServiceMap}
 import com.orbitz.consul.model.agent.{ImmutableRegistration, Registration}
 import com.orbitz.consul.{Consul, NotRegisteredException}
 import com.typesafe.config.Config
@@ -26,23 +26,27 @@ import scala.concurrent.duration._
 import scala.util.control.NonFatal
 
 case class ConsulServiceRegistratorConfig(
-                                        nodeId: String,
-                                        address: Option[String] = None,
-                                        port: Option[Int],
-                                        serviceMap: ConsulServiceMap = ConsulServiceMap.empty,
-                                        updateInterval: FiniteDuration = 3.seconds
-                                      )
+                                           consul: ConsulConfiguration,
+                                           nodeId: String,
+                                           address: Option[String] = None,
+                                           port: Option[Int],
+                                           serviceMap: ConsulServiceMap = ConsulServiceMap.empty,
+                                           updateInterval: FiniteDuration = 3.seconds
+                                         )
 
 class ConsulServiceRegistratorException(message: String) extends RuntimeException(message)
 
-class ConsulServiceRegistrator(consul: Consul, registratorConfig: ConsulServiceRegistratorConfig)
+class ConsulServiceRegistrator(val consul: Consul, registratorConfig: ConsulServiceRegistratorConfig)
                               (implicit val scheduler: Scheduler) extends ServiceRegistrator with StrictLogging {
 
   private val serviceUpdaters = mutable.Map[(String, String), ServiceUpdater]()
   private val lock = new Object
 
+  def this(registratorConfig: ConsulServiceRegistratorConfig)(implicit scheduler: Scheduler) = this(
+    registratorConfig.consul.buildClient(), registratorConfig
+  )
+
   def this(config: Config)(implicit scheduler: Scheduler) = this(
-    ConsulConfigLoader(config),
     config.read[ConsulServiceRegistratorConfig]("service-registrator")
   )
 

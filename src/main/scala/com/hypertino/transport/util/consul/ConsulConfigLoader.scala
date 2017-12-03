@@ -10,20 +10,34 @@ package com.hypertino.transport.util.consul
 
 import com.google.common.net.HostAndPort
 import com.orbitz.consul.Consul
-import com.typesafe.config.Config
+import scala.concurrent.duration._
 
-private[consul] case class BasicAuth(username: String, password: String)
+case class BasicAuth(username: String, password: String)
 
-object ConsulConfigLoader {
-  def apply(config: Config): Consul = {
-    import com.hypertino.binders.config.ConfigBinders._
+case class ConsulConfiguration(
+                              address: Option[String],
+                              basicAuth: Option[BasicAuth],
+                              connectTimeout: Option[FiniteDuration],
+                              readTimeout: Option[FiniteDuration],
+                              writeTimeout: Option[FiniteDuration]
+                              )
+{
+  def buildClient(): Consul = {
     val builder = Consul.builder()
-    if (config.hasPath("address")) {
-      builder.withHostAndPort(HostAndPort.fromString(config.getString("address")))
+    address.foreach { address ⇒
+      builder.withHostAndPort(HostAndPort.fromString(address))
     }
-    if (config.hasPath("basic-auth")) {
-      val auth = config.read[BasicAuth]("basic-auth")
-      builder.withBasicAuth(auth.username,auth.password)
+    basicAuth.foreach { basicAuth ⇒
+      builder.withBasicAuth(basicAuth.username,basicAuth.password)
+    }
+    connectTimeout.foreach { connectTimeout ⇒
+      builder.withConnectTimeoutMillis(connectTimeout.toMillis)
+    }
+    readTimeout.foreach { readTimeout ⇒
+      builder.withReadTimeoutMillis(readTimeout.toMillis)
+    }
+    writeTimeout.foreach { writeTimeout ⇒
+      builder.withWriteTimeoutMillis(writeTimeout.toMillis)
     }
     builder.build()
   }

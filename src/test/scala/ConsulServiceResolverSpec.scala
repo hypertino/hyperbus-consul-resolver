@@ -66,7 +66,7 @@ class ConsulServiceResolverSpec extends FlatSpec with ScalaFutures with Matchers
   }
 
   "Not existing service" should "fail fast" in {
-    val r = new ConsulServiceResolver(consul, ConsulServiceResolverConfig(ConsulServiceMap.empty))
+    val r = new ConsulServiceResolver(consul, ConsulServiceResolverConfig(null, ConsulServiceMap.empty))
     r.lookupService(req("test-service")).runAsync.failed.futureValue shouldBe a[NoTransportRouteException]
   }
 
@@ -112,5 +112,5 @@ class ConsulServiceResolverSpec extends FlatSpec with ScalaFutures with Matchers
     agentClient.deregister(serviceId)
   }
 
-  def csrConfig = ConsulServiceResolverConfig(ConsulServiceMap(Seq(RegexMatcher("^(.+)$") → "hb-$1")))
+  def csrConfig = ConsulServiceResolverConfig(null, ConsulServiceMap(Seq(RegexMatcher("^(.+)$") → "hb-$1")))
 }

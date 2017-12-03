@@ -27,7 +27,7 @@ class ConsulServiceRegistratorSpec extends FlatSpec with ScalaFutures with Match
 
   "Service" should "register" in {
     val requestMatcher = RequestMatcher("hb://user", Method.GET)
-    val serviceRegistrator = new ConsulServiceRegistrator(consul, ConsulServiceRegistratorConfig("node-1",None,Some(123),serviceMap))
+    val serviceRegistrator = new ConsulServiceRegistrator(consul, ConsulServiceRegistratorConfig(null, "node-1",None,Some(123),serviceMap))
     val cancelable = serviceRegistrator.registerService(requestMatcher).runAsync.futureValue
     try {
 
@@ -43,7 +43,7 @@ class ConsulServiceRegistratorSpec extends FlatSpec with ScalaFutures with Match
 
   it should "deregister" in {
     val requestMatcher = RequestMatcher("hb://auth", Method.GET)
-    val serviceRegistrator = new ConsulServiceRegistrator(consul, ConsulServiceRegistratorConfig("node-1", None, Some(123),serviceMap))
+    val serviceRegistrator = new ConsulServiceRegistrator(consul, ConsulServiceRegistratorConfig(null, "node-1", None, Some(123),serviceMap))
     val cancelable = serviceRegistrator.registerService(requestMatcher).runAsync.futureValue
     val r = new ConsulServiceResolver(consul, csrConfig)
     try {
@@ -64,7 +64,7 @@ class ConsulServiceRegistratorSpec extends FlatSpec with ScalaFutures with Match
     val requestMatcher1 = RequestMatcher("hb://user/1", Method.GET)
     val requestMatcher2 = RequestMatcher("hb://user/2", Method.GET)
 
-    val serviceRegistrator = new ConsulServiceRegistrator(consul, ConsulServiceRegistratorConfig("node-1",None,Some(123),serviceMap))
+    val serviceRegistrator = new ConsulServiceRegistrator(consul, ConsulServiceRegistratorConfig(null, "node-1",None,Some(123),serviceMap))
     val r = new ConsulServiceResolver(consul, csrConfig)
     val cancelable1 = serviceRegistrator.registerService(requestMatcher1).runAsync.futureValue
     val cancelable2 = serviceRegistrator.registerService(requestMatcher2).runAsync.futureValue
@@ -101,6 +101,7 @@ class ConsulServiceRegistratorSpec extends FlatSpec with ScalaFutures with Match
   it should "load config" in {
     val config = ConfigFactory.parseString(
       """
+        read-timeout: 60s
         service-registrator: {
           node-id: 1
           port: 12345
@@ -122,5 +123,5 @@ class ConsulServiceRegistratorSpec extends FlatSpec with ScalaFutures with Match
   }
 
   def serviceMap = ConsulServiceMap(Seq(RegexMatcher("^(.*)$") → "hb-$1"))
-  def csrConfig = ConsulServiceResolverConfig(serviceMap)
+  def csrConfig = ConsulServiceResolverConfig(null, serviceMap)
 }
